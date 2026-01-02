@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DNS AdBlocker Terminal</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://unpkg.com/htmx.org/dist/ext/sse.js"></script>
+    
+    <style>
+        :root {
+            --bg-color: #0c0c0c;
+            --term-bg: #000000;
+            --text-primary: #d4d4d4;
+            --text-dim: #555555; 
+            --border-color: #333333;
+            --accent: #38bdf8;
+            
+            --log-blocked: #f44747;
+            --log-allowed: #4ec9b0;
+            --log-cached: #4fc1ff;
+            --log-error: #ce9178;
+        }
+
+        body {
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            gap: 15px;
+            background: #111;
+            padding: 10px 15px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        h1 { margin: 0; font-size: 1.1rem; color: var(--accent); }
+
+        /* Grid de Métricas */
+        #stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: #111;
+            border: 1px solid var(--border-color);
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 0.9rem;
+            color: var(--text-dim);
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .stat-card span {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--accent);
+        }
+
+        .controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+        select, input[type="text"] {
+            background: #1e1e1e;
+            border: 1px solid var(--border-color);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 4px;
+            outline: none;
+            font-family: inherit;
+            font-size: 13px;
+        }
+
+        #terminal {
+            background-color: var(--term-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        /* Scrollbar Personalizado */
+        #terminal::-webkit-scrollbar { width: 8px; }
+        #terminal::-webkit-scrollbar-track { background: var(--term-bg); }
+        #terminal::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+        #terminal::-webkit-scrollbar-thumb:hover { background: #444; }
+
+        .log-line {
+            line-height: 1.6;
+            white-space: pre-wrap;
+            margin-bottom: 3px;
+            font-size: 14px;
+            display: flex;
+            gap: 10px;
+            border-bottom: 1px solid #0a0a0a;
+        }
+
+        .log-line.hidden { display: none; }
+        .tag-blocked { color: var(--log-blocked); font-weight: bold; }
+        .tag-allowed { color: var(--log-allowed); font-weight: bold; }
+        .tag-cached  { color: var(--log-cached); font-weight: bold; }
+        .tag-error   { color: var(--log-error); font-weight: bold; }
+
+        #log-status { font-size: 0.8rem; color: var(--text-dim); margin-top: 8px; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Console</h1>
+        <div class="controls">
+            <input type="text" id="domainSearch" placeholder="Procurar domínio..." onkeyup="applyFilters()">
+            
+            <select id="typeFilter" onchange="applyFilters()">
+                <option value="all">Todos os Eventos</option>
+                <option value="blocked">Bloqueados</option>
+                <option value="allowed">Permitidos</option>
+                <option value="cached">Cache</option>
+            </select>
+
+            <select id="timeFilter" onchange="applyFilters()">
+                <option value="1">Último minuto</option>
+                <option value="5">Últimos 5 minutos</option>
+                <option value="15">Últimos 15 minutos</option>
+                <option value="30">Últimos 30 minutos</option>
+                <option value="60" selected>Última hora</option>
+                <option value="180">Últimas 3 horas</option>
+                <option value="1440">Último dia</option>
+            </select>
+
+            <button class="btn-clear" onclick="clearConsole()" style="background: #331111; color: #ff8888; border: 1px solid #552222; padding: 6px 12px; border-radius: 4px; cursor: pointer;">Limpar</button>
+        </div>
+    </header>
+
+    <div id="stats-grid" hx-get="/api/stats" hx-trigger="every 2s" hx-swap="innerHTML">
+        <div class="stat-card"><span>{{.Total}}</span>Total</div>
+        <div class="stat-card"><span style="color: var(--log-blocked);">{{.Blocked}}</span>Bloqueios</div>
+        <div class="stat-card"><span style="color: var(--log-allowed);">{{printf "%.1f" .Percent}}%</span>Porcentagem bloqueada</div>
+        <div class="stat-card"><span style="color: var(--log-cached);">{{.Cached}}</span>Cache</div>
+    </div>
+
+    <div id="terminal" hx-ext="sse" sse-connect="/events">
+        <div id="log-container" sse-swap="message" hx-swap="beforeend">
+            <div class="log-line" style="color: #444;">[SISTEMA] Fiscalização de rede iniciada. </div>
+        </div>
+    </div>
+
+    <div id="log-status">Monitorizando tráfego em tempo real...</div>
+
+    <script>
+        function applyFilters() {
+            const searchTerm = document.getElementById('domainSearch').value.toLowerCase();
+            const selectedType = document.getElementById('typeFilter').value;
+            const minutesLimit = parseInt(document.getElementById('timeFilter').value);
+            
+            const now = Math.floor(Date.now() / 1000);
+            const lines = document.querySelectorAll('.log-line');
+            let visibleCount = 0;
+
+            lines.forEach(line => {
+                if (!line.hasAttribute('data-ts')) return;
+                const ts = parseInt(line.getAttribute('data-ts'));
+                const type = line.getAttribute('data-type');
+                const content = line.textContent.toLowerCase();
+
+                const diffMinutes = (now - ts) / 60;
+                const matchesTime = diffMinutes <= minutesLimit;
+                const matchesType = (selectedType === 'all' || type === selectedType);
+                const matchesSearch = content.includes(searchTerm);
+
+                if (matchesTime && matchesType && matchesSearch) {
+                    line.classList.remove('hidden');
+                    visibleCount++;
+                } else {
+                    line.classList.add('hidden');
+                }
+            });
+
+            document.getElementById('log-status').innerText = `${visibleCount} logs exibidos`;
+            const terminal = document.getElementById('terminal');
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+
+        function clearConsole() {
+            document.getElementById('log-container').innerHTML = '';
+            applyFilters();
+        }
+
+        const container = document.getElementById('log-container');
+        const terminal = document.getElementById('terminal');
+        const observer = new MutationObserver(() => {
+            applyFilters();
+            const isAtBottom = terminal.scrollHeight - terminal.scrollTop <= terminal.clientHeight + 100;
+            if (isAtBottom) terminal.scrollTop = terminal.scrollHeight;
+        });
+        observer.observe(container, { childList: true });
+    </script>
+</body>
+</html>
