@@ -1,4 +1,4 @@
-module adblocker
+module dnsblocker
 
 go 1.25.4
 

@@ -1,10 +1,10 @@
 package main
 
 import (
-	"adblocker/internal/blocker"
-	"adblocker/internal/config"
-	"adblocker/internal/dashboard"
-	"adblocker/internal/dns"
+	"dnsblocker/internal/blocker"
+	"dnsblocker/internal/config"
+	"dnsblocker/internal/dashboard"
+	"dnsblocker/internal/dns"
 	"log"
 	"os"
 	"os/signal"

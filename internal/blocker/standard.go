@@ -1,6 +1,6 @@
 package blocker
 
-import "adblocker/internal/blocklist"
+import "dnsblocker/internal/blocklist"
 
 // StandardBlocker implementa a interface Blocker usando uma lista de domínios em memória.
 type StandardBlocker struct {

@@ -1,8 +1,8 @@
 package dns
 
 import (
-	"adblocker/internal/blocker"
-	"adblocker/internal/dashboard"
+	"dnsblocker/internal/blocker"
+	"dnsblocker/internal/dashboard"
 	"log"
 	"sync/atomic"
 
