@@ -1,6 +1,5 @@
 package blocker
 
-// AllowAllBlocker é um Blocker que nunca bloqueia nada.
 type AllowAllBlocker struct{}
 
 func NewAllowAllBlocker() *AllowAllBlocker {
