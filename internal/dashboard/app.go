@@ -73,9 +73,10 @@ func (app *DashApp) handleStatsAPI(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, `
 		<div class="stat-card"><span>%d</span>Total</div>
 		<div class="stat-card"><span style="color: #f44747;">%d</span>Bloqueios</div>
+		<div class="stat-card"><span style="color: #4ec9b0;">%.1f%%</span>Porcentagem bloqueada</div>
 		<div class="stat-card"><span style="color: #4fc1ff;">%d</span>Cache</div>
-		<div class="stat-card"><span style="color: #4ec9b0;">%.1f%%</span>Eficiência</div>
-	`, total, blocked, cached, percent)
+		
+	`, total, blocked, percent, cached)
 }
 
 func (app *DashApp) handleEvents(w http.ResponseWriter, r *http.Request) {
